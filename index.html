@@ -27,7 +27,7 @@ select,input[type="month"],input[type="date"],input[type="text"],button{
 button{background:var(--pri);color:#fff;border:none;cursor:pointer}
 button.ghost{background:#fff;color:#111;border:1px solid var(--line)}
 button.warn{background:var(--warn);color:#111}
-button.danger{background:var(--danger)}
+button.danger{background:#ef4444}
 button:disabled{opacity:.6;cursor:not-allowed}
 .grid{display:grid;grid-template-columns:300px 1fr;gap:16px}
 .card-title{font-weight:700;margin:0 0 10px}
@@ -55,8 +55,7 @@ small.muted{color:var(--muted)}
 .legend{display:flex;gap:8px;flex-wrap:wrap}
 .legend .chip{display:flex;gap:6px;align-items:center}
 .footer{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap}
-.sunday-mustrest{outline:2px solid var(--danger)}
-.sunday-ok{outline:2px solid var(--ok)}
+.sunday-mustrest{outline:2px solid var(--danger)} /* แดงเฉพาะกรณีต้องหยุด */
 hr{border:none;border-top:1px solid var(--line);margin:12px 0}
 @media (max-width:980px){.grid{grid-template-columns:1fr}}
 </style>
@@ -83,12 +82,17 @@ hr{border:none;border-top:1px solid var(--line);margin:12px 0}
       <div class="panel">
         <div class="row">
           <input id="empName" type="text" placeholder="เพิ่มชื่อพนักงาน">
+          <select id="empShift">
+            <option value="A">กะ A</option>
+            <option value="B">กะ B</option>
+            <option value="O">หัวหน้า (กะ O)</option>
+          </select>
           <button id="addEmpBtn">เพิ่ม</button>
           <button id="exportBtn" class="ghost">ส่งออก CSV</button>
           <button id="importBtn" class="ghost">นำเข้า CSV</button>
           <input id="importFile" type="file" accept=".csv" style="display:none">
         </div>
-        <small class="muted">CSV ฟอร์แมต: name,date(YYYY-MM-DD),worked(1=ทำงาน/0=หยุด)</small>
+        <small class="muted">CSV: name,date(YYYY-MM-DD),worked(1=ทำงาน/0=หยุด)</small>
         <hr>
         <div class="row legend">
           <span class="chip"><span class="tag work">ทำ</span> ทำงาน</span>
@@ -111,6 +115,12 @@ hr{border:none;border-top:1px solid var(--line);margin:12px 0}
             <div class="emp-stats" id="empStats"></div>
           </div>
           <div class="row">
+            <label>กะปัจจุบัน</label>
+            <select id="activeEmpShift" disabled>
+              <option value="A">กะ A</option>
+              <option value="B">กะ B</option>
+              <option value="O">หัวหน้า (กะ O)</option>
+            </select>
             <button id="markAllWork" class="ghost">มาร์คทั้งเดือน = ทำงาน</button>
             <button id="markAllOff" class="ghost">มาร์คทั้งเดือน = หยุด</button>
             <button id="clearMonth" class="warn">ล้างเดือนนี้</button>
@@ -128,9 +138,9 @@ hr{border:none;border-top:1px solid var(--line);margin:12px 0}
   </div>
 
 <script>
-/* ========= Supabase (สาธารณะ) ========= */
-const SUPABASE_URL = "https://kgrcgnretraxiwsyihtx.supabase.co";      // ใส่ของคุณ
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtncmNnbnJldHJheGl3c3lpaHR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwODA2OTcsImV4cCI6MjA3MzY1NjY5N30.YQ2JkfLo6oKpUu98FU9hP6EoSqaKtnXYY7KhjHMABTU";     // ใส่ของคุณ
+/* ========= Supabase ========= */
+const SUPABASE_URL = "https://kgrcgnretraxiwsyihtx.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtncmNnbnJldHJheGl3c3lpaHR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwODA2OTcsImV4cCI6MjA3MzY1NjY5N30.YQ2JkfLo6oKpUu98FU9hP6EoSqaKtnXYY7KhjHMABTU";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let ORG_ID = null;
 
@@ -144,9 +154,11 @@ const monthPicker = $('#monthPicker');
 const shiftStart = $('#shiftStart');
 const sundaySupport = $('#sundaySupport');
 const empName = $('#empName');
+const empShift = $('#empShift');
 const empList = $('#empList');
 const empTitle = $('#empTitle');
 const empStats = $('#empStats');
+const activeEmpShift = $('#activeEmpShift');
 const delBtn = $('#deleteEmpBtn');
 const calHead = $('#calHead');
 const calBody = $('#calendar');
@@ -160,8 +172,8 @@ const importFile = $('#importFile');
 const noticeBox = $('#noticeBox');
 const summaryKPI = $('#summaryKPI');
 
-let employees = [];
-let attendanceByEmp = new Map(); // empId -> Map(ymd -> boolean)
+let employees = [];                      // [{id,name,org_id,shift_type}]
+let attendanceByEmp = new Map();         // empId -> Map(ymd -> boolean)
 let config = { shift_start: null, sunday_support: false };
 let activeEmpId = null;
 
@@ -201,10 +213,15 @@ async function loadEmployees(){
   renderEmpList();
   await loadAttendanceForActiveMonth();
 }
-async function addEmployee(name){
-  const { data, error } = await sb.from('employees').insert({ org_id: ORG_ID, name }).select('*').single();
+async function addEmployee(name, shift_type){
+  const { data, error } = await sb.from('employees').insert({ org_id: ORG_ID, name, shift_type }).select('*').single();
   if(error){ alert(error.message); return null; }
   return data;
+}
+async function updateEmployeeShift(id, shift_type){
+  const { error } = await sb.from('employees').update({ shift_type }).eq('id', id);
+  if(error){ alert(error.message); return false; }
+  return true;
 }
 async function deleteEmployee(id){
   const { error } = await sb.from('employees').delete().eq('id', id);
@@ -268,29 +285,49 @@ function isShiftBoundary(date){
   const start=new Date(shiftStart.value || config.shift_start); const ms=(date-start); const days=Math.floor(ms/86400000);
   if(isNaN(days)) return false; const b=Math.floor(days/14); const nb=Math.floor((days+1)/14); return nb>b;
 }
+
+/* กะ O: ไม่ใช้ boundary แต่ยังใช้กฎ 13 วันเหมือนทุกกะ */
 function suggestOffDays(emp){
-  const stats=computeStats(emp); const mustBy=new Date(stats.mustRestBy); const suggestSet=new Set(); const top=[];
-  const sundayRequired = !!sundaySupport.checked; const maxLook=7; const candidates=[];
+  const stats=computeStats(emp);
+  const mustBy=new Date(stats.mustRestBy);
+  const suggestSet=new Set();
+  const top=[];
+  const maxLook=7;
+  const candidates=[];
+  const sundayRequired = !!sundaySupport.checked; // toggle รวมทีม
+  const useBoundary = emp.shift_type !== 'O';     // A/B เท่านั้นที่ให้คะแนน boundary
+
   for(let i=0;i<=maxLook;i++){
     const d=new Date(today); d.setDate(d.getDate()+i);
     if(d>mustBy) break;
     const ymd=toYMD(d);
     if(getWork(emp.id, ymd)===false) continue;
+
     let score=0;
-    if(isShiftBoundary(d)) score+=3;
-    if(d.getDay()===0){ score+=-2; if(sundayRequired) score+=-4; }
+    if(useBoundary && isShiftBoundary(d)) score+=3;
+    if(d.getDay()===0){
+      score+=-2;
+      if(sundayRequired) score+=-4;   // ถ้าต้องซัพพอร์ต → ไม่แนะนำหยุดอาทิตย์
+    }
     if(d.getDay()===6) score+=1;
-    const dt=Math.floor((mustBy-d)/86400000); score+=(dt<=1?2:dt<=2?1:0);
+    const dt=Math.floor((mustBy-d)/86400000);
+    score+=(dt<=1?2:dt<=2?1:0);
+
     candidates.push({ymd,score,date:new Date(d)});
   }
-  if(!candidates.length){ suggestSet.add(toYMD(today)); top.push(toYMD(today)); return {suggestSet, top}; }
-  candidates.sort((a,b)=>b.score-a.score||a.date-b.date); candidates.slice(0,2).forEach(c=>{suggestSet.add(c.ymd); top.push(c.ymd);});
+  if(!candidates.length){
+    const t=toYMD(today); suggestSet.add(t); top.push(t);
+    return {suggestSet, top};
+  }
+  candidates.sort((a,b)=>b.score-a.score||a.date-b.date);
+  candidates.slice(0,2).forEach(c=>{suggestSet.add(c.ymd); top.push(c.ymd);});
   return {suggestSet, top};
 }
-/* ---- New: เช็ก "วันอาทิตย์ที่จะถึง" ---- */
+
+/* วันอาทิตย์ที่จะถึง: ถ้าต้องทำ → สตรีค +1 แล้วห้ามเกิน 13 (ทุกกะเหมือนกัน) */
 function nextSunday(fromDate=new Date()){
-  const d = new Date(fromDate);
-  const add = (7 - d.getDay()) % 7; // 0=Sun
+  const d=new Date(fromDate);
+  const add=(7-d.getDay())%7; // 0=Sun
   d.setDate(d.getDate()+add);
   return d;
 }
@@ -298,13 +335,13 @@ function sundayDecision(emp){
   const stats = computeStats(emp);
   const ns = nextSunday(today);
   const ymd = toYMD(ns);
-  // ถ้าวันอาทิตย์มาร์คหยุดแล้ว ก็ถือว่าโอเค
-  if(getWork(emp.id, ymd) === false) return { date: ymd, mustRest: false, alreadyOff: true };
 
-  // สมมติว่าทำงานในวันอาทิตย์นั้น → สตรีค +1
+  const worked = getWork(emp.id, ymd);
+  if(worked === false) return { date: ymd, mustRest: false, reason: 'already_off' };
+
   const streakIfWork = stats.currentStreak + 1;
-  const mustRest = streakIfWork > 13; // ถ้าเกิน 13 → ต้องหยุด
-  return { date: ymd, mustRest, alreadyOff: false };
+  const mustRest = streakIfWork > 13;
+  return { date: ymd, mustRest, reason: 'calc' };
 }
 
 /* ========= Rendering ========= */
@@ -316,7 +353,7 @@ function renderEmpList(){
     const stats = computeStats(emp);
     item.innerHTML = `
       <div>
-        <div style="font-weight:600">${emp.name}</div>
+        <div style="font-weight:600">${emp.name} <span class="chip">กะ ${emp.shift_type}</span></div>
         <div class="emp-stats">
           <span>สตรีคปัจจุบัน: <strong>${stats.currentStreak}</strong> วัน</span>
           <span>เหลือได้อีก: <strong>${Math.max(0,13-stats.currentStreak)}</strong> วัน</span>
@@ -340,30 +377,49 @@ function renderSummaryKPI(){
 }
 function renderCalendar(){
   const wdays=['จ','อ','พ','พฤ','ศ','ส','อา'];
-  calHead.innerHTML = wdays.map(d=>`<div>${d}</div>`).join(''); calBody.innerHTML='';
+  calHead.innerHTML = wdays.map(d=>`<div>${d}</div>`).join(''); 
+  calBody.innerHTML='';
   const emp = employees.find(e=>e.id===activeEmpId);
   empTitle.textContent = emp ? `พนักงาน: ${emp.name}` : 'ยังไม่ได้เลือกพนักงาน';
-  empStats.textContent=''; noticeBox.innerHTML=''; if(!emp) return;
+  empStats.textContent=''; noticeBox.innerHTML=''; 
+  activeEmpShift.disabled = !emp; 
+  if(emp){ activeEmpShift.value = emp.shift_type; }
+  if(!emp) return;
 
   const [yy,mm] = monthPicker.value.split('-').map(Number);
-  const first = new Date(yy,mm-1,1); const last = new Date(yy,mm,0); const firstDow=(first.getDay()+6)%7;
-  for(let i=0;i<firstDow;i++){ const blank=document.createElement('div'); blank.className='day'; blank.style.visibility='hidden'; calBody.appendChild(blank); }
+  const first = new Date(yy,mm-1,1); 
+  const last = new Date(yy,mm,0); 
+  const firstDow=(first.getDay()+6)%7;
+  for(let i=0;i<firstDow;i++){ 
+    const blank=document.createElement('div'); 
+    blank.className='day'; 
+    blank.style.visibility='hidden'; 
+    calBody.appendChild(blank); 
+  }
 
   const suggests = suggestOffDays(emp);
-  const sundayInfo = sundayDecision(emp); // << ใช้ผลลัพธ์ตรงนี้
+  const sundayInfo = sundayDecision(emp);
+
   for(let d=1; d<=last.getDate(); d++){
-    const date=new Date(yy,mm-1,d); const ymd=toYMD(date); const worked=getWork(emp.id, ymd);
-    const cell=document.createElement('div'); cell.className='day';
-    // ถ้าเป็นวันอาทิตย์ที่จะถึง → ใส่กรอบสีเขียว/แดง
-    if(ymd === sundayInfo.date){
-      cell.classList.add(sundayInfo.mustRest ? 'sunday-mustrest' : 'sunday-ok');
-    }
+    const date=new Date(yy,mm-1,d);
+    const ymd=toYMD(date);
+    const worked=getWork(emp.id, ymd);
+    const cell=document.createElement('div'); 
+    cell.className='day';
+    // ไฮไลต์เฉพาะกรณี "ต้องหยุด" ในวันอาทิตย์ที่จะถึง (ไม่ขึ้นสีเขียว)
+    if(ymd === sundayInfo.date && sundayInfo.mustRest){ cell.classList.add('sunday-mustrest'); }
     const tags=[];
     if(worked===true) tags.push('<span class="tag work">ทำ</span>');
     if(worked===false) tags.push('<span class="tag off">หยุด</span>');
     if(suggests.suggestSet.has(ymd)) tags.push('<span class="tag suggest">แนะนำหยุด</span>');
     cell.innerHTML=`<div class="d">${d}</div><div class="mark">${tags.join('')}</div>`;
-    cell.onclick=async()=>{ const cur=getWork(emp.id, ymd); if(cur===true) await setWork(emp.id, ymd, false); else if(cur===false) await clearDay(emp.id, ymd); else await setWork(emp.id, ymd, true); renderCalendar(); renderEmpList(); renderSummaryKPI(); };
+    cell.onclick=async()=>{
+      const cur=getWork(emp.id, ymd);
+      if(cur===true) await setWork(emp.id, ymd, false);
+      else if(cur===false) await clearDay(emp.id, ymd);
+      else await setWork(emp.id, ymd, true);
+      renderCalendar(); renderEmpList(); renderSummaryKPI();
+    };
     calBody.appendChild(cell);
   }
 
@@ -373,14 +429,13 @@ function renderCalendar(){
     <span class="chip">ต้องหยุดภายใน: <strong>${stats.mustRestBy || '-'}</strong></span>
     <span class="chip">แนะนำหยุด: ${suggests.top.join(', ')||'-'}</span>`;
 
-  // กล่องแจ้งเตือนหลัก
   if(stats.currentStreak>13) noticeBox.innerHTML += `<div class="warnbox"><strong>เกิน 13 วันแล้ว!</strong> กรุณาจัดวันหยุดทันที</div>`;
   else if(stats.currentStreak===13) noticeBox.innerHTML += `<div class="warnbox"><strong>ครบ 13 วัน!</strong> ต้องหยุดวันนี้</div>`;
   else if(stats.currentStreak>=10) noticeBox.innerHTML += `<div class="okbox"><strong>เตือนล่วงหน้า:</strong> อีก ${13-stats.currentStreak} วันจะครบ 13 — พิจารณาวันหยุดที่แนะนำ</div>`;
 
-  // ข้อความเฉพาะ “วันอาทิตย์ที่จะถึง”
-  if(sundayInfo.alreadyOff){
-    noticeBox.innerHTML += `<div class="okbox">วันอาทิตย์ที่จะถึง (${sundayInfo.date}) ถูกมาร์ค <strong>หยุด</strong> แล้ว</div>`;
+  // ข้อความเฉพาะ “วันอาทิตย์ที่จะถึง” (ลบ policy_O ออก ใช้กฎเดียวทุกกะ)
+  if(sundayInfo.reason==='already_off'){
+    noticeBox.innerHTML += `<div class="okbox">วันอาทิตย์ที่จะถึง (${sundayInfo.date}) มาร์ค <strong>หยุด</strong> แล้ว</div>`;
   }else if(sundayInfo.mustRest){
     noticeBox.innerHTML += `<div class="warnbox">วันอาทิตย์ที่จะถึง (${sundayInfo.date}) <strong>ต้องหยุด</strong> (ถ้าทำงานจะเกิน 13 วัน)</div>`;
   }else{
@@ -391,8 +446,15 @@ function renderCalendar(){
 /* ========= Events ========= */
 document.getElementById('addEmpBtn').onclick = async ()=>{
   const name = empName.value.trim(); if(!name) return;
-  const row = await addEmployee(name); if(!row) return;
+  const st = empShift.value || 'A';
+  const row = await addEmployee(name, st); if(!row) return;
   employees.push(row); empName.value=''; activeEmpId=row.id; renderEmpList(); await loadAttendanceForActiveMonth();
+};
+activeEmpShift.onchange = async ()=>{
+  const emp = employees.find(e=>e.id===activeEmpId); if(!emp) return;
+  const st = activeEmpShift.value;
+  const ok = await updateEmployeeShift(emp.id, st); if(!ok) { activeEmpShift.value = emp.shift_type; return; }
+  emp.shift_type = st; renderEmpList(); renderCalendar();
 };
 document.getElementById('deleteEmpBtn').onclick = async ()=>{
   if(!activeEmpId) return; const emp = employees.find(e=>e.id===activeEmpId);
@@ -446,7 +508,7 @@ importFile.onchange = async (e)=>{
     const worked = Number((cols[2]||'').replace(/^"|"$/g,''));
     if(!name || !date || !(worked===0 || worked===1)) continue;
     let emp = mapByName.get(name);
-    if(!emp){ const row = await addEmployee(name); if(!row) continue; emp=row; employees.push(emp); mapByName.set(name, emp); }
+    if(!emp){ const row = await addEmployee(name, 'A'); if(!row) continue; emp=row; employees.push(emp); mapByName.set(name, emp); }
     await setWork(emp.id, date, !!worked);
   }
   await loadAttendanceForActiveMonth();
