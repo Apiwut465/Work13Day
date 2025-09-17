@@ -34,41 +34,21 @@ button:disabled{opacity:.6;cursor:not-allowed}
 small.muted{color:var(--muted)}
 .chip{background:var(--chip);padding:6px 10px;border-radius:999px;font-size:.85rem}
 .employee-list{max-height:420px;overflow:auto;border-top:1px dashed var(--line);padding-top:8px}
-.emp-item{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;background:#fff}
-.emp-item.active{outline:2px solid var(--pri);background:#eef2ff}
-.emp-stats{font-size:.82rem;color:var(--muted);display:flex;gap:10px}
-.kpi{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
-.kpi-item{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px;font-size:.85rem}
-.kpi-item strong{font-size:1rem}
-.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
-.cal-head div{font-size:.85rem;color:var(--muted);text-align:center}
-.day{background:#fff;border:1px solid var(--line);border-radius:12px;min-height:78px;padding:6px;position:relative;display:flex;flex-direction:column}
-.day .d{font-weight:700}
-.day .mark{margin-top:auto;display:flex;gap:6px;align-items:center}
-.tag{font-size:.72rem;padding:2px 6px;border-radius:999px}
-.tag.work{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
-.tag.off{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
-.tag.suggest{background:#fff7ed;color:#9a3412;border:1px dashed #fed7aa}
-.warnbox{background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;border-radius:12px;padding:10px 12px}
-.okbox{background:#ecfeff;border:1px solid #bae6fd;color:#0c4a6e;border-radius:12px;padding:10px 12px}
-.legend{display:flex;gap:8px;flex-wrap:wrap}
-.legend .chip{display:flex;gap:6px;align-items:center}
-.footer{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap}
-.sunday-mustrest{outline:2px solid var(--danger)} /* แดงเฉพาะกรณีต้องหยุด */
-hr{border:none;border-top:1px solid var(--line);margin:12px 0}
-@media (max-width:980px){.grid{grid-template-columns:1fr}}
-/* การ์ดพนักงาน – เพิ่มสี/เอฟเฟกต์ */
+
+/* การ์ดพนักงาน + สีสถานะ/กะ */
 .emp-item{
   position:relative;
+  display:flex; align-items:center; justify-content:space-between;
+  border:1px solid var(--line); border-radius:12px; padding:10px 12px;
+  margin-bottom:8px; cursor:pointer; background:#fff;
   transition:background .2s,border-color .2s,box-shadow .2s,transform .05s;
 }
-.emp-item:hover{ box-shadow:0 4px 12px rgba(2,6,23,.06); transform:translateY(-1px); }
-
-/* สีพื้นตามสถานะ */
-.emp-item.ok     { background:#f0fdf4; border-color:#bbf7d0; }  /* ปกติ: เขียวอ่อน */
-.emp-item.warn   { background:#fffbeb; border-color:#fde68a; }  /* ใกล้ครบ: เหลือง */
-.emp-item.danger { background:#fef2f2; border-color:#fecaca; }  /* ครบ/เกิน: แดง */
+.emp-item.active{outline:2px solid var(--pri);background:#eef2ff}
+.emp-item:hover{ box-shadow:0 4px 12px rgba(2,6,23,.06); transform:translateY(-1px) }
+.emp-stats{font-size:.82rem;color:var(--muted);display:flex;gap:10px}
+.emp-item.ok{background:#f0fdf4; border-color:#bbf7d0}
+.emp-item.warn{background:#fffbeb; border-color:#fde68a}
+.emp-item.danger{background:#fef2f2; border-color:#fecaca}
 
 /* แถบสีซ้ายตามกะ */
 .emp-item.shift-A::before,
@@ -92,9 +72,44 @@ hr{border:none;border-top:1px solid var(--line);margin:12px 0}
 .status-pill.warn   { background:#fef3c7; color:#92400e; border:1px solid #fde68a; }
 .status-pill.danger { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
 
-/* เน้นตัวเลข */
-.num{ font-weight:700; }
+/* กลุ่มรายชื่อแยกตามกะ */
+.group{margin-bottom:12px}
+.group-header{
+  display:flex; justify-content:space-between; align-items:center;
+  gap:10px; padding:8px 10px; border:1px dashed var(--line);
+  border-radius:10px; background:#f8fafc; margin-bottom:8px;
+}
+.group-header .title{font-weight:700}
+.group-header .counts{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+.group-header .toggle{border:1px solid var(--line); background:#fff; border-radius:8px; padding:4px 8px; font-size:.8rem; cursor:pointer}
+.count-pill{padding:4px 8px; border-radius:999px; font-size:.75rem; border:1px solid var(--line); background:#fff}
+.count-pill.ok{background:#dcfce7; border-color:#bbf7d0; color:#166534}
+.count-pill.warn{background:#fef3c7; border-color:#fde68a; color:#92400e}
+.count-pill.danger{background:#fee2e2; border-color:#fecaca; color:#991b1b}
+.group.collapsed .emp-item{display:none}
 
+/* ปฏิทิน */
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
+.cal-head div{font-size:.85rem;color:var(--muted);text-align:center}
+.day{background:#fff;border:1px solid var(--line);border-radius:12px;min-height:78px;padding:6px;position:relative;display:flex;flex-direction:column}
+.day .d{font-weight:700}
+.day .mark{margin-top:auto;display:flex;gap:6px;align-items:center}
+.tag{font-size:.72rem;padding:2px 6px;border-radius:999px}
+.tag.work{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+.tag.off{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.tag.suggest{background:#fff7ed;color:#9a3412;border:1px dashed #fed7aa}
+.warnbox{background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;border-radius:12px;padding:10px 12px}
+.okbox{background:#ecfeff;border:1px solid #bae6fd;color:#0c4a6e;border-radius:12px;padding:10px 12px}
+
+.legend{display:flex;gap:8px;flex-wrap:wrap}
+.legend .chip{display:flex;gap:6px;align-items:center}
+.footer{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap}
+.sunday-mustrest{outline:2px solid var(--danger)} /* วันอาทิตย์ที่ "ต้องหยุด" */
+hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+@media (max-width:980px){.grid{grid-template-columns:1fr}}
+.num{ font-weight:700; }
+.muted{ color:var(--muted); font-size:.9rem }
 </style>
 </head>
 <body>
@@ -214,6 +229,13 @@ let attendanceByEmp = new Map();         // empId -> Map(ymd -> boolean)
 let config = { shift_start: null, sunday_support: false };
 let activeEmpId = null;
 
+/* ========= กลุ่ม/สถานะ UI ========= */
+const uiState = { collapsed: { A:false, B:false, O:false } };
+const SHIFT_LABEL = { A:'กะ A', B:'กะ B', O:'กะ O (หัวหน้า)' };
+const SHIFT_ORDER = ['A','B','O'];
+function statusKeyOf(stats){ return stats.currentStreak>=13 ? 'danger' : (stats.currentStreak>=10 ? 'warn' : 'ok'); }
+function statusTextOf(stats){ return stats.currentStreak>13 ? 'เกินแล้ว' : (stats.currentStreak===13 ? 'ครบ 13' : (stats.currentStreak>=10 ? 'ใกล้ครบ' : 'ปกติ')); }
+
 /* ========= ORG + CONFIG ========= */
 async function ensurePublicOrg(){
   const { data, error } = await sb.from('orgs').select('id').eq('name','Public Org').maybeSingle();
@@ -323,7 +345,7 @@ function isShiftBoundary(date){
   if(isNaN(days)) return false; const b=Math.floor(days/14); const nb=Math.floor((days+1)/14); return nb>b;
 }
 
-/* กะ O: ไม่ใช้ boundary แต่ยังใช้กฎ 13 วันเหมือนทุกกะ */
+/* กะ O: ไม่ใช้ boundary แต่ใช้กฎ 13 วันเหมือนทุกกะ */
 function suggestOffDays(emp){
   const stats=computeStats(emp);
   const mustBy=new Date(stats.mustRestBy);
@@ -361,7 +383,7 @@ function suggestOffDays(emp){
   return {suggestSet, top};
 }
 
-/* วันอาทิตย์ที่จะถึง: ถ้าต้องทำ → สตรีค +1 แล้วห้ามเกิน 13 (ทุกกะเหมือนกัน) */
+/* วันอาทิตย์ที่จะถึง: ถ้าทำ → สตรีค +1 แล้วห้ามเกิน 13 (ทุกกะเหมือนกัน) */
 function nextSunday(fromDate=new Date()){
   const d=new Date(fromDate);
   const add=(7-d.getDay())%7; // 0=Sun
@@ -384,38 +406,76 @@ function sundayDecision(emp){
 /* ========= Rendering ========= */
 function renderEmpList(){
   empList.innerHTML = '';
+
+  // แบ่งพนักงานตามกะ
+  const groups = { A:[], B:[], O:[] };
   employees.forEach(emp=>{
     const stats = computeStats(emp);
-
-    // จัดหมวดสถานะ + ข้อความ
-    const statusKey =
-      stats.currentStreak >= 13 ? 'danger' :
-      stats.currentStreak >= 10 ? 'warn'   : 'ok';
-    const statusText =
-      stats.currentStreak > 13  ? 'เกินแล้ว' :
-      stats.currentStreak === 13? 'ครบ 13'  :
-      stats.currentStreak >= 10 ? 'ใกล้ครบ': 'ปกติ';
-
-    const item = document.createElement('div');
-    item.className = `emp-item ${statusKey} shift-${emp.shift_type}` + (emp.id===activeEmpId ? ' active' : '');
-
-    item.innerHTML = `
-      <div>
-        <div style="font-weight:700">
-          ${emp.name}
-          <span class="shift-badge shift-${emp.shift_type}">กะ ${emp.shift_type}</span>
-        </div>
-        <div class="emp-stats">
-          <span>ทำงานต่อเนื่อง: <span class="num">${stats.currentStreak}</span> วัน</span>
-          <span>เหลือได้อีก: <span class="num">${Math.max(0, 13 - stats.currentStreak)}</span> วัน</span>
-        </div>
-      </div>
-      <div class="status-pill ${statusKey}">${statusText}</div>
-    `;
-
-    item.onclick = ()=>{ activeEmpId = emp.id; renderCalendar(); renderEmpList(); };
-    empList.appendChild(item);
+    const statusKey = statusKeyOf(stats);
+    const statusText = statusTextOf(stats);
+    const shift = (emp.shift_type || 'A');
+    groups[shift].push({ emp, stats, statusKey, statusText });
   });
+
+  // วาดกลุ่มตามลำดับ A → B → O
+  const severityOrder = { danger:0, warn:1, ok:2 };
+  SHIFT_ORDER.forEach(s=>{
+    const list = groups[s];
+    if(!list || list.length===0) return;
+
+    // เรียง: อันตราย → ใกล้ครบ → ปกติ → ชื่อ
+    list.sort((a,b)=> severityOrder[a.statusKey] - severityOrder[b.statusKey]
+                      || b.stats.currentStreak - a.stats.currentStreak
+                      || a.emp.name.localeCompare(b.emp.name,'th'));
+
+    // นับสรุปสถานะ
+    const cnt = { ok:0, warn:0, danger:0 };
+    list.forEach(x=> cnt[x.statusKey]++ );
+
+    // กล่องหัวกลุ่ม
+    const groupEl = document.createElement('div');
+    groupEl.className = 'group' + (uiState.collapsed[s] ? ' collapsed' : '');
+
+    const header = document.createElement('div');
+    header.className = 'group-header';
+    header.innerHTML = `
+      <div class="title">${SHIFT_LABEL[s]} <span class="muted">(${list.length} คน)</span></div>
+      <div class="counts">
+        <span class="count-pill danger">ครบ/เกิน ${cnt.danger}</span>
+        <span class="count-pill warn">ใกล้ครบ ${cnt.warn}</span>
+        <span class="count-pill ok">ปกติ ${cnt.ok}</span>
+        <button class="toggle" data-s="${s}">${uiState.collapsed[s] ? 'แสดง' : 'ย่อ'}</button>
+      </div>`;
+    header.querySelector('button.toggle').onclick = (e)=>{
+      const k = e.currentTarget.dataset.s;
+      uiState.collapsed[k] = !uiState.collapsed[k];
+      renderEmpList();
+    };
+    groupEl.appendChild(header);
+
+    // รายการพนักงานในกลุ่ม
+    list.forEach(({emp,stats,statusKey,statusText})=>{
+      const item = document.createElement('div');
+      item.className = `emp-item ${statusKey} shift-${emp.shift_type}` + (emp.id===activeEmpId ? ' active' : '');
+      item.innerHTML = `
+        <div>
+          <div style="font-weight:700">
+            ${emp.name}
+            <span class="shift-badge shift-${emp.shift_type}">กะ ${emp.shift_type}</span>
+          </div>
+          <div class="emp-stats">
+            <span>ทำงานต่อเนื่อง: <span class="num">${stats.currentStreak}</span> วัน</span>
+            <span>เหลือได้อีก: <span class="num">${Math.max(0, 13 - stats.currentStreak)}</span> วัน</span>
+          </div>
+        </div>
+        <div class="status-pill ${statusKey}">${statusText}</div>`;
+      item.onclick = ()=>{ activeEmpId = emp.id; renderCalendar(); renderEmpList(); };
+      groupEl.appendChild(item);
+    });
+
+    empList.appendChild(groupEl);
+  });
+
   if(!employees.length){
     empList.innerHTML = '<div class="muted">ยังไม่มีรายชื่อพนักงาน — เพิ่มที่ช่องด้านบน</div>';
   }
@@ -431,6 +491,7 @@ function renderSummaryKPI(){
     <div class="kpi-item"><div>เกิน/ครบ 13 วัน</div><strong style="color:${violating? 'var(--danger)':'inherit'}">${violating}</strong></div>
     <div class="kpi-item"><div>ปกติ</div><strong>${safe}</strong></div>`;
 }
+
 function renderCalendar(){
   const wdays=['จ','อ','พ','พฤ','ศ','ส','อา'];
   calHead.innerHTML = wdays.map(d=>`<div>${d}</div>`).join(''); 
@@ -462,7 +523,6 @@ function renderCalendar(){
     const worked=getWork(emp.id, ymd);
     const cell=document.createElement('div'); 
     cell.className='day';
-    // ไฮไลต์เฉพาะกรณี "ต้องหยุด" ในวันอาทิตย์ที่จะถึง (ไม่ขึ้นสีเขียว)
     if(ymd === sundayInfo.date && sundayInfo.mustRest){ cell.classList.add('sunday-mustrest'); }
     const tags=[];
     if(worked===true) tags.push('<span class="tag work">ทำ</span>');
@@ -489,7 +549,6 @@ function renderCalendar(){
   else if(stats.currentStreak===13) noticeBox.innerHTML += `<div class="warnbox"><strong>ครบ 13 วัน!</strong> ต้องหยุดวันนี้</div>`;
   else if(stats.currentStreak>=10) noticeBox.innerHTML += `<div class="okbox"><strong>เตือนล่วงหน้า:</strong> อีก ${13-stats.currentStreak} วันจะครบ 13 — พิจารณาวันหยุดที่แนะนำ</div>`;
 
-  // ข้อความเฉพาะ “วันอาทิตย์ที่จะถึง” (ลบ policy_O ออก ใช้กฎเดียวทุกกะ)
   if(sundayInfo.reason==='already_off'){
     noticeBox.innerHTML += `<div class="okbox">วันอาทิตย์ที่จะถึง (${sundayInfo.date}) มาร์ค <strong>หยุด</strong> แล้ว</div>`;
   }else if(sundayInfo.mustRest){
