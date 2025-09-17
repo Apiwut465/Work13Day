@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ตัวช่วยนับวันทำงาน & แนะนำวันหยุด (≤13 วันติด)</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --ink:#0f172a; --muted:#64748b; --line:#e5e7eb; --card:#ffffff;
+  --bg:#f6f7fb; --pri:#6366f1; --ok:#16a34a; --warn:#f59e0b; --danger:#ef4444;
+  --soft:#eef2ff; --radius:16px; --chip:#f1f5f9;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans Thai',system-ui,Segoe UI,Arial}
+.container{max-width:1200px;margin:24px auto;padding:0 16px}
+h1{font-size:1.4rem;margin:0 0 14px;display:flex;gap:10px;align-items:center}
+.badge{font-size:.8rem;background:var(--soft);color:#3730a3;padding:4px 10px;border-radius:999px}
+.toolbar{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:12px 0 18px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.row label{font-size:.9rem;color:var(--muted)}
+select,input[type="month"],input[type="date"],input[type="text"],button{
+  padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:.95rem
+}
+button{background:var(--pri);color:#fff;border:none;cursor:pointer}
+button.ghost{background:#fff;color:#111;border:1px solid var(--line)}
+button.warn{background:var(--warn);color:#111}
+button.danger{background:var(--danger)}
+button:disabled{opacity:.6;cursor:not-allowed}
+.grid{display:grid;grid-template-columns:300px 1fr;gap:16px}
+.card-title{font-weight:700;margin:0 0 10px}
+small.muted{color:var(--muted)}
+.chip{background:var(--chip);padding:6px 10px;border-radius:999px;font-size:.85rem}
+.employee-list{max-height:420px;overflow:auto;border-top:1px dashed var(--line);padding-top:8px}
+.emp-item{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;background:#fff}
+.emp-item.active{outline:2px solid var(--pri);background:#eef2ff}
+.emp-stats{font-size:.82rem;color:var(--muted);display:flex;gap:10px}
+.kpi{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.kpi-item{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px;font-size:.85rem}
+.kpi-item strong{font-size:1rem}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
+.cal-head div{font-size:.85rem;color:var(--muted);text-align:center}
+.day{background:#fff;border:1px solid var(--line);border-radius:12px;min-height:78px;padding:6px;position:relative;display:flex;flex-direction:column}
+.day .d{font-weight:700}
+.day .mark{margin-top:auto;display:flex;gap:6px;align-items:center}
+.tag{font-size:.72rem;padding:2px 6px;border-radius:999px}
+.tag.work{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+.tag.off{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.tag.suggest{background:#fff7ed;color:#9a3412;border:1px dashed #fed7aa}
+.warnbox{background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;border-radius:12px;padding:10px 12px}
+.okbox{background:#ecfeff;border:1px solid #bae6fd;color:#0c4a6e;border-radius:12px;padding:10px 12px}
+.legend{display:flex;gap:8px;flex-wrap:wrap}
+.legend .chip{display:flex;gap:6px;align-items:center}
+.footer{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap}
+.sunday-mustrest{outline:2px solid var(--danger)}
+.sunday-ok{outline:2px solid var(--ok)}
+hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+@media (max-width:980px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>ตัวช่วยนับวันทำงาน & แนะนำวันหยุด <span class="badge">จำกัดไม่เกิน 13 วันติด</span></h1>
+
+    <div class="toolbar">
+      <div class="panel">
+        <div class="row">
+          <label>เลือกเดือน</label>
+          <input id="monthPicker" type="month">
+          <label>เริ่มสัปดาห์กะ A</label>
+          <input id="shiftStart" type="date">
+          <label class="row" style="gap:6px">
+            <input id="sundaySupport" type="checkbox">
+            ต้องซัพพอร์ตวันอาทิตย์ (เลี่ยงแนะนำหยุดวันอาทิตย์)
+          </label>
+        </div>
+        <div class="kpi" id="summaryKPI"></div>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <input id="empName" type="text" placeholder="เพิ่มชื่อพนักงาน">
+          <button id="addEmpBtn">เพิ่ม</button>
+          <button id="exportBtn" class="ghost">ส่งออก CSV</button>
+          <button id="importBtn" class="ghost">นำเข้า CSV</button>
+          <input id="importFile" type="file" accept=".csv" style="display:none">
+        </div>
+        <small class="muted">CSV ฟอร์แมต: name,date(YYYY-MM-DD),worked(1=ทำงาน/0=หยุด)</small>
+        <hr>
+        <div class="row legend">
+          <span class="chip"><span class="tag work">ทำ</span> ทำงาน</span>
+          <span class="chip"><span class="tag off">หยุด</span> หยุด</span>
+          <span class="chip"><span class="tag suggest">แนะนำหยุด</span> ก่อนครบ 13 วัน</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h3 class="card-title">รายชื่อพนักงาน</h3>
+        <div class="employee-list" id="empList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <div>
+            <h3 class="card-title" id="empTitle">ยังไม่ได้เลือกพนักงาน</h3>
+            <div class="emp-stats" id="empStats"></div>
+          </div>
+          <div class="row">
+            <button id="markAllWork" class="ghost">มาร์คทั้งเดือน = ทำงาน</button>
+            <button id="markAllOff" class="ghost">มาร์คทั้งเดือน = หยุด</button>
+            <button id="clearMonth" class="warn">ล้างเดือนนี้</button>
+          </div>
+        </div>
+        <div id="noticeBox" style="margin:10px 0;"></div>
+        <div class="cal-head" id="calHead"></div>
+        <div class="calendar" id="calendar"></div>
+        <div class="footer">
+          <button id="saveBtn">บันทึก</button>
+          <button id="deleteEmpBtn" class="danger">ลบพนักงานนี้</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ========= Supabase (สาธารณะ) ========= */
+const SUPABASE_URL = "https://kgrcgnretraxiwsyihtx.supabase.co";      // ใส่ของคุณ
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtncmNnbnJldHJheGl3c3lpaHR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwODA2OTcsImV4cCI6MjA3MzY1NjY5N30.YQ2JkfLo6oKpUu98FU9hP6EoSqaKtnXYY7KhjHMABTU";     // ใส่ของคุณ
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let ORG_ID = null;
+
+/* ========= Utils / UI refs ========= */
+const $ = (s,ctx=document)=>ctx.querySelector(s);
+const today = new Date();
+const pad2 = n => String(n).padStart(2,'0');
+const toYMD = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+
+const monthPicker = $('#monthPicker');
+const shiftStart = $('#shiftStart');
+const sundaySupport = $('#sundaySupport');
+const empName = $('#empName');
+const empList = $('#empList');
+const empTitle = $('#empTitle');
+const empStats = $('#empStats');
+const delBtn = $('#deleteEmpBtn');
+const calHead = $('#calHead');
+const calBody = $('#calendar');
+const markAllWork = $('#markAllWork');
+const markAllOff = $('#markAllOff');
+const clearMonth = $('#clearMonth');
+const saveBtn = $('#saveBtn');
+const exportBtn = $('#exportBtn');
+const importBtn = $('#importBtn');
+const importFile = $('#importFile');
+const noticeBox = $('#noticeBox');
+const summaryKPI = $('#summaryKPI');
+
+let employees = [];
+let attendanceByEmp = new Map(); // empId -> Map(ymd -> boolean)
+let config = { shift_start: null, sunday_support: false };
+let activeEmpId = null;
+
+/* ========= ORG + CONFIG ========= */
+async function ensurePublicOrg(){
+  const { data, error } = await sb.from('orgs').select('id').eq('name','Public Org').maybeSingle();
+  if(error){ alert('โหลด Public Org ล้มเหลว: '+error.message); return; }
+  if(!data){
+    const ins = await sb.from('orgs').insert({ name:'Public Org' }).select('id').single();
+    if(ins.error){ alert('สร้าง Public Org ไม่ได้: '+ins.error.message); return; }
+    ORG_ID = ins.data.id;
+  } else { ORG_ID = data.id; }
+
+  let cfg = await sb.from('org_config').select('*').eq('org_id', ORG_ID).maybeSingle();
+  if(cfg.error){ alert('โหลด config ล้มเหลว: '+cfg.error.message); return; }
+  if(!cfg.data){
+    const d = new Date(); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day-7);
+    const defShift = toYMD(d);
+    const ins = await sb.from('org_config').insert({ org_id: ORG_ID, shift_start: defShift, sunday_support: false }).select('*').single();
+    if(ins.error){ alert('สร้าง config ไม่ได้: '+ins.error.message); return; }
+    config = ins.data;
+  } else {
+    config = { shift_start: cfg.data.shift_start, sunday_support: cfg.data.sunday_support };
+  }
+  shiftStart.value = config.shift_start;
+  sundaySupport.checked = !!config.sunday_support;
+
+  monthPicker.value = `${today.getFullYear()}-${pad2(today.getMonth()+1)}`;
+}
+
+/* ========= Data Access ========= */
+async function loadEmployees(){
+  const { data, error } = await sb.from('employees').select('*').eq('org_id', ORG_ID).order('created_at');
+  if(error){ alert('โหลดรายชื่อพนักงานล้มเหลว: '+error.message); return; }
+  employees = data || [];
+  if(employees.length) activeEmpId = activeEmpId || employees[0].id;
+  renderEmpList();
+  await loadAttendanceForActiveMonth();
+}
+async function addEmployee(name){
+  const { data, error } = await sb.from('employees').insert({ org_id: ORG_ID, name }).select('*').single();
+  if(error){ alert(error.message); return null; }
+  return data;
+}
+async function deleteEmployee(id){
+  const { error } = await sb.from('employees').delete().eq('id', id);
+  if(error){ alert(error.message); return false; }
+  return true;
+}
+async function loadAttendanceForActiveMonth(){
+  attendanceByEmp.clear();
+  if(!employees.length){ renderCalendar(); renderSummaryKPI(); return; }
+  const [yy,mm] = monthPicker.value.split('-').map(Number);
+  const start = `${yy}-${pad2(mm)}-01`;
+  const end = `${yy}-${pad2(mm)}-${pad2(new Date(yy,mm,0).getDate())}`;
+  const empIds = employees.map(e=>e.id);
+  const { data, error } = await sb.from('attendance').select('*')
+    .in('employee_id', empIds).gte('work_date', start).lte('work_date', end);
+  if(error){ alert('โหลดข้อมูลเดือนนี้ล้มเหลว: '+error.message); return; }
+  for(const e of employees){ attendanceByEmp.set(e.id, new Map()); }
+  for(const r of (data||[])){ attendanceByEmp.get(r.employee_id).set(r.work_date, r.worked); }
+  renderCalendar(); renderSummaryKPI();
+}
+function getWork(empId, ymd){ return attendanceByEmp.get(empId)?.get(ymd); }
+async function setWork(empId, ymd, v){
+  const cur = getWork(empId, ymd);
+  if(cur===undefined){
+    const ins = await sb.from('attendance').insert({ employee_id: empId, work_date: ymd, worked: v }).select('*').single();
+    if(ins.error){ alert(ins.error.message); return; }
+    attendanceByEmp.get(empId).set(ymd, ins.data.worked);
+  }else{
+    const upd = await sb.from('attendance').update({ worked: v }).eq('employee_id', empId).eq('work_date', ymd);
+    if(upd.error){ alert(upd.error.message); return; }
+    attendanceByEmp.get(empId).set(ymd, v);
+  }
+}
+async function clearDay(empId, ymd){
+  const del = await sb.from('attendance').delete().eq('employee_id', empId).eq('work_date', ymd);
+  if(del.error){ alert(del.error.message); return; }
+  attendanceByEmp.get(empId).delete(ymd);
+}
+async function saveConfig(){
+  const shift_start = shiftStart.value;
+  const sunday_support = sundaySupport.checked;
+  const upd = await sb.from('org_config').update({ shift_start, sunday_support }).eq('org_id', ORG_ID);
+  if(upd.error){ alert(upd.error.message); return; }
+  config = { shift_start, sunday_support };
+}
+
+/* ========= Business logic ========= */
+function computeStats(emp){
+  let streak=0;
+  for(let i=0;i<60;i++){
+    const d=new Date(today); d.setDate(d.getDate()-i);
+    const w=getWork(emp.id, toYMD(d));
+    if(w===true) streak++; else break;
+  }
+  const left=Math.max(0,13-streak);
+  const mustRestBy = streak>=13 ? toYMD(today) : toYMD(new Date(today.getFullYear(),today.getMonth(),today.getDate()+left));
+  const statusLabel = streak>13? 'เกินแล้ว' : streak===13? 'ครบ 13 วัน' : streak>=10? 'ใกล้ครบ' : 'ปกติ';
+  return {currentStreak:streak, mustRestBy, statusLabel};
+}
+function isShiftBoundary(date){
+  const start=new Date(shiftStart.value || config.shift_start); const ms=(date-start); const days=Math.floor(ms/86400000);
+  if(isNaN(days)) return false; const b=Math.floor(days/14); const nb=Math.floor((days+1)/14); return nb>b;
+}
+function suggestOffDays(emp){
+  const stats=computeStats(emp); const mustBy=new Date(stats.mustRestBy); const suggestSet=new Set(); const top=[];
+  const sundayRequired = !!sundaySupport.checked; const maxLook=7; const candidates=[];
+  for(let i=0;i<=maxLook;i++){
+    const d=new Date(today); d.setDate(d.getDate()+i);
+    if(d>mustBy) break;
+    const ymd=toYMD(d);
+    if(getWork(emp.id, ymd)===false) continue;
+    let score=0;
+    if(isShiftBoundary(d)) score+=3;
+    if(d.getDay()===0){ score+=-2; if(sundayRequired) score+=-4; }
+    if(d.getDay()===6) score+=1;
+    const dt=Math.floor((mustBy-d)/86400000); score+=(dt<=1?2:dt<=2?1:0);
+    candidates.push({ymd,score,date:new Date(d)});
+  }
+  if(!candidates.length){ suggestSet.add(toYMD(today)); top.push(toYMD(today)); return {suggestSet, top}; }
+  candidates.sort((a,b)=>b.score-a.score||a.date-b.date); candidates.slice(0,2).forEach(c=>{suggestSet.add(c.ymd); top.push(c.ymd);});
+  return {suggestSet, top};
+}
+/* ---- New: เช็ก "วันอาทิตย์ที่จะถึง" ---- */
+function nextSunday(fromDate=new Date()){
+  const d = new Date(fromDate);
+  const add = (7 - d.getDay()) % 7; // 0=Sun
+  d.setDate(d.getDate()+add);
+  return d;
+}
+function sundayDecision(emp){
+  const stats = computeStats(emp);
+  const ns = nextSunday(today);
+  const ymd = toYMD(ns);
+  // ถ้าวันอาทิตย์มาร์คหยุดแล้ว ก็ถือว่าโอเค
+  if(getWork(emp.id, ymd) === false) return { date: ymd, mustRest: false, alreadyOff: true };
+
+  // สมมติว่าทำงานในวันอาทิตย์นั้น → สตรีค +1
+  const streakIfWork = stats.currentStreak + 1;
+  const mustRest = streakIfWork > 13; // ถ้าเกิน 13 → ต้องหยุด
+  return { date: ymd, mustRest, alreadyOff: false };
+}
+
+/* ========= Rendering ========= */
+function renderEmpList(){
+  empList.innerHTML = '';
+  employees.forEach(emp=>{
+    const item = document.createElement('div');
+    item.className = 'emp-item' + (emp.id===activeEmpId ? ' active' : '');
+    const stats = computeStats(emp);
+    item.innerHTML = `
+      <div>
+        <div style="font-weight:600">${emp.name}</div>
+        <div class="emp-stats">
+          <span>สตรีคปัจจุบัน: <strong>${stats.currentStreak}</strong> วัน</span>
+          <span>เหลือได้อีก: <strong>${Math.max(0,13-stats.currentStreak)}</strong> วัน</span>
+        </div>
+      </div>
+      <div class="chip">${stats.statusLabel}</div>`;
+    item.onclick=()=>{ activeEmpId = emp.id; renderCalendar(); renderEmpList(); };
+    empList.appendChild(item);
+  });
+  if(!employees.length) empList.innerHTML = '<div class="muted">ยังไม่มีรายชื่อพนักงาน — เพิ่มที่ช่องด้านบน</div>';
+}
+function renderSummaryKPI(){
+  const list = employees.map(e=>({e,stats:computeStats(e)}));
+  const approaching = list.filter(x=>x.stats.currentStreak>=10 && x.stats.currentStreak<13).length;
+  const violating = list.filter(x=>x.stats.currentStreak>=13).length;
+  const safe = list.filter(x=>x.stats.currentStreak<10).length;
+  summaryKPI.innerHTML = `
+    <div class="kpi-item"><div>ใกล้ครบ 13 วัน</div><strong>${approaching}</strong></div>
+    <div class="kpi-item"><div>เกิน/ครบ 13 วัน</div><strong style="color:${violating? 'var(--danger)':'inherit'}">${violating}</strong></div>
+    <div class="kpi-item"><div>ปกติ</div><strong>${safe}</strong></div>`;
+}
+function renderCalendar(){
+  const wdays=['จ','อ','พ','พฤ','ศ','ส','อา'];
+  calHead.innerHTML = wdays.map(d=>`<div>${d}</div>`).join(''); calBody.innerHTML='';
+  const emp = employees.find(e=>e.id===activeEmpId);
+  empTitle.textContent = emp ? `พนักงาน: ${emp.name}` : 'ยังไม่ได้เลือกพนักงาน';
+  empStats.textContent=''; noticeBox.innerHTML=''; if(!emp) return;
+
+  const [yy,mm] = monthPicker.value.split('-').map(Number);
+  const first = new Date(yy,mm-1,1); const last = new Date(yy,mm,0); const firstDow=(first.getDay()+6)%7;
+  for(let i=0;i<firstDow;i++){ const blank=document.createElement('div'); blank.className='day'; blank.style.visibility='hidden'; calBody.appendChild(blank); }
+
+  const suggests = suggestOffDays(emp);
+  const sundayInfo = sundayDecision(emp); // << ใช้ผลลัพธ์ตรงนี้
+  for(let d=1; d<=last.getDate(); d++){
+    const date=new Date(yy,mm-1,d); const ymd=toYMD(date); const worked=getWork(emp.id, ymd);
+    const cell=document.createElement('div'); cell.className='day';
+    // ถ้าเป็นวันอาทิตย์ที่จะถึง → ใส่กรอบสีเขียว/แดง
+    if(ymd === sundayInfo.date){
+      cell.classList.add(sundayInfo.mustRest ? 'sunday-mustrest' : 'sunday-ok');
+    }
+    const tags=[];
+    if(worked===true) tags.push('<span class="tag work">ทำ</span>');
+    if(worked===false) tags.push('<span class="tag off">หยุด</span>');
+    if(suggests.suggestSet.has(ymd)) tags.push('<span class="tag suggest">แนะนำหยุด</span>');
+    cell.innerHTML=`<div class="d">${d}</div><div class="mark">${tags.join('')}</div>`;
+    cell.onclick=async()=>{ const cur=getWork(emp.id, ymd); if(cur===true) await setWork(emp.id, ymd, false); else if(cur===false) await clearDay(emp.id, ymd); else await setWork(emp.id, ymd, true); renderCalendar(); renderEmpList(); renderSummaryKPI(); };
+    calBody.appendChild(cell);
+  }
+
+  const stats=computeStats(emp);
+  empStats.innerHTML = `
+    <span class="chip">สตรีคล่าสุด: <strong>${stats.currentStreak}</strong> วัน</span>
+    <span class="chip">ต้องหยุดภายใน: <strong>${stats.mustRestBy || '-'}</strong></span>
+    <span class="chip">แนะนำหยุด: ${suggests.top.join(', ')||'-'}</span>`;
+
+  // กล่องแจ้งเตือนหลัก
+  if(stats.currentStreak>13) noticeBox.innerHTML += `<div class="warnbox"><strong>เกิน 13 วันแล้ว!</strong> กรุณาจัดวันหยุดทันที</div>`;
+  else if(stats.currentStreak===13) noticeBox.innerHTML += `<div class="warnbox"><strong>ครบ 13 วัน!</strong> ต้องหยุดวันนี้</div>`;
+  else if(stats.currentStreak>=10) noticeBox.innerHTML += `<div class="okbox"><strong>เตือนล่วงหน้า:</strong> อีก ${13-stats.currentStreak} วันจะครบ 13 — พิจารณาวันหยุดที่แนะนำ</div>`;
+
+  // ข้อความเฉพาะ “วันอาทิตย์ที่จะถึง”
+  if(sundayInfo.alreadyOff){
+    noticeBox.innerHTML += `<div class="okbox">วันอาทิตย์ที่จะถึง (${sundayInfo.date}) ถูกมาร์ค <strong>หยุด</strong> แล้ว</div>`;
+  }else if(sundayInfo.mustRest){
+    noticeBox.innerHTML += `<div class="warnbox">วันอาทิตย์ที่จะถึง (${sundayInfo.date}) <strong>ต้องหยุด</strong> (ถ้าทำงานจะเกิน 13 วัน)</div>`;
+  }else{
+    noticeBox.innerHTML += `<div class="okbox">วันอาทิตย์ที่จะถึง (${sundayInfo.date}) <strong>ยังทำงานได้</strong></div>`;
+  }
+}
+
+/* ========= Events ========= */
+document.getElementById('addEmpBtn').onclick = async ()=>{
+  const name = empName.value.trim(); if(!name) return;
+  const row = await addEmployee(name); if(!row) return;
+  employees.push(row); empName.value=''; activeEmpId=row.id; renderEmpList(); await loadAttendanceForActiveMonth();
+};
+document.getElementById('deleteEmpBtn').onclick = async ()=>{
+  if(!activeEmpId) return; const emp = employees.find(e=>e.id===activeEmpId);
+  if(!confirm(`ลบพนักงาน: ${emp.name}?`)) return;
+  const ok = await deleteEmployee(activeEmpId); if(!ok) return;
+  employees = employees.filter(e=>e.id!==activeEmpId); activeEmpId = employees[0]?.id || null; renderEmpList(); await loadAttendanceForActiveMonth();
+};
+monthPicker.onchange = loadAttendanceForActiveMonth;
+shiftStart.onchange = async ()=>{ await saveConfig(); renderCalendar(); };
+sundaySupport.onchange = async ()=>{ await saveConfig(); renderCalendar(); };
+document.getElementById('markAllWork').onclick = async ()=>{
+  const emp = employees.find(e=>e.id===activeEmpId); if(!emp) return;
+  const [yy,mm]=monthPicker.value.split('-').map(Number); const last=new Date(yy,mm,0).getDate();
+  for(let d=1; d<=last; d++){ await setWork(emp.id, `${yy}-${pad2(mm)}-${pad2(d)}`, true); }
+  renderCalendar(); renderEmpList(); renderSummaryKPI();
+};
+document.getElementById('markAllOff').onclick = async ()=>{
+  const emp = employees.find(e=>e.id===activeEmpId); if(!emp) return;
+  const [yy,mm]=monthPicker.value.split('-').map(Number); const last=new Date(yy,mm,0).getDate();
+  for(let d=1; d<=last; d++){ await setWork(emp.id, `${yy}-${pad2(mm)}-${pad2(d)}`, false); }
+  renderCalendar(); renderEmpList(); renderSummaryKPI();
+};
+document.getElementById('clearMonth').onclick = async ()=>{
+  const emp = employees.find(e=>e.id===activeEmpId); if(!emp) return;
+  const [yy,mm]=monthPicker.value.split('-').map(Number); const last=new Date(yy,mm,0).getDate();
+  for(let d=1; d<=last; d++){ await clearDay(emp.id, `${yy}-${pad2(mm)}-${pad2(d)}`); }
+  renderCalendar(); renderEmpList(); renderSummaryKPI();
+};
+document.getElementById('saveBtn').onclick = ()=>{ noticeBox.innerHTML = `<div class="okbox">บันทึกแล้ว</div>`; setTimeout(()=>noticeBox.innerHTML='', 1600); };
+
+/* ========= CSV I/O ========= */
+exportBtn.onclick = ()=>{
+  const rows = [['name','date','worked']];
+  employees.forEach(e=>{
+    const rec = attendanceByEmp.get(e.id) || new Map();
+    for(const [ymd,v] of rec.entries()){ if(v===true || v===false) rows.push([e.name, ymd, v?1:0]); }
+  });
+  const csv = rows.map(r=>r.map(x=>String(x).replaceAll('"','""')).map(x=>`"${x}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}); const a=document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `workdays_${toYMD(today)}.csv`; a.click();
+};
+importBtn.onclick = ()=> importFile.click();
+importFile.onchange = async (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const text = await file.text(); const lines = text.split(/\r?\n/).filter(x=>x.trim()); lines.shift();
+  const mapByName = new Map(employees.map(e=>[e.name,e]));
+  for(const line of lines){
+    const cols = parseCSVLine(line); if(!cols.length) continue;
+    const name = (cols[0]||'').replace(/^"|"$/g,'').trim();
+    const date = (cols[1]||'').replace(/^"|"$/g,'').trim();
+    const worked = Number((cols[2]||'').replace(/^"|"$/g,''));
+    if(!name || !date || !(worked===0 || worked===1)) continue;
+    let emp = mapByName.get(name);
+    if(!emp){ const row = await addEmployee(name); if(!row) continue; emp=row; employees.push(emp); mapByName.set(name, emp); }
+    await setWork(emp.id, date, !!worked);
+  }
+  await loadAttendanceForActiveMonth();
+  noticeBox.innerHTML = `<div class="okbox">นำเข้าข้อมูลสำเร็จ</div>`; setTimeout(()=>noticeBox.innerHTML='', 1600);
+};
+function parseCSVLine(line){
+  const out=[], re=/("([^"]*(?:""[^"]*)*)"|[^,]*)(,|$)/g; let m;
+  while((m=re.exec(line))!==null){ out.push(m[2]? m[2].replaceAll('""','"') : m[1]); if(!m[3]) break; }
+  return out;
+}
+
+/* ========= Init ========= */
+(async function init(){
+  monthPicker.value = `${today.getFullYear()}-${pad2(today.getMonth()+1)}`;
+  await ensurePublicOrg();
+  await loadEmployees();
+})();
+</script>
+</body>
+</html>
