@@ -58,6 +58,43 @@ small.muted{color:var(--muted)}
 .sunday-mustrest{outline:2px solid var(--danger)} /* แดงเฉพาะกรณีต้องหยุด */
 hr{border:none;border-top:1px solid var(--line);margin:12px 0}
 @media (max-width:980px){.grid{grid-template-columns:1fr}}
+/* การ์ดพนักงาน – เพิ่มสี/เอฟเฟกต์ */
+.emp-item{
+  position:relative;
+  transition:background .2s,border-color .2s,box-shadow .2s,transform .05s;
+}
+.emp-item:hover{ box-shadow:0 4px 12px rgba(2,6,23,.06); transform:translateY(-1px); }
+
+/* สีพื้นตามสถานะ */
+.emp-item.ok     { background:#f0fdf4; border-color:#bbf7d0; }  /* ปกติ: เขียวอ่อน */
+.emp-item.warn   { background:#fffbeb; border-color:#fde68a; }  /* ใกล้ครบ: เหลือง */
+.emp-item.danger { background:#fef2f2; border-color:#fecaca; }  /* ครบ/เกิน: แดง */
+
+/* แถบสีซ้ายตามกะ */
+.emp-item.shift-A::before,
+.emp-item.shift-B::before,
+.emp-item.shift-O::before{
+  content:""; position:absolute; left:-1px; top:0; bottom:0; width:4px; border-radius:12px 0 0 12px;
+}
+.emp-item.shift-A::before{ background:#3b82f6; }  /* A = ฟ้า */
+.emp-item.shift-B::before{ background:#9d7ce8; }  /* B = ม่วง */
+.emp-item.shift-O::before{ background:#fb923c; }  /* O = ส้ม */
+
+/* แบ็ดจ์กะ */
+.shift-badge{ padding:4px 8px; border-radius:999px; font-size:.8rem; font-weight:700; }
+.shift-A{ background:#dbeafe; color:#1d97d8; border:1px solid #bfdbfe; }
+.shift-B{ background:#ede9fe; color:#6d28d9; border:1px solid #ddd6fe; }
+.shift-O{ background:#ffedd5; color:#c2410c; border:1px solid #fed7aa; }
+
+/* แคปซูลสถานะด้านขวา */
+.status-pill{ padding:6px 10px; border-radius:999px; font-size:.8rem; font-weight:600; }
+.status-pill.ok     { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+.status-pill.warn   { background:#fef3c7; color:#92400e; border:1px solid #fde68a; }
+.status-pill.danger { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+
+/* เน้นตัวเลข */
+.num{ font-weight:700; }
+
 </style>
 </head>
 <body>
@@ -348,23 +385,42 @@ function sundayDecision(emp){
 function renderEmpList(){
   empList.innerHTML = '';
   employees.forEach(emp=>{
-    const item = document.createElement('div');
-    item.className = 'emp-item' + (emp.id===activeEmpId ? ' active' : '');
     const stats = computeStats(emp);
+
+    // จัดหมวดสถานะ + ข้อความ
+    const statusKey =
+      stats.currentStreak >= 13 ? 'danger' :
+      stats.currentStreak >= 10 ? 'warn'   : 'ok';
+    const statusText =
+      stats.currentStreak > 13  ? 'เกินแล้ว' :
+      stats.currentStreak === 13? 'ครบ 13'  :
+      stats.currentStreak >= 10 ? 'ใกล้ครบ': 'ปกติ';
+
+    const item = document.createElement('div');
+    item.className = `emp-item ${statusKey} shift-${emp.shift_type}` + (emp.id===activeEmpId ? ' active' : '');
+
     item.innerHTML = `
       <div>
-        <div style="font-weight:600">${emp.name} <span class="chip">กะ ${emp.shift_type}</span></div>
+        <div style="font-weight:700">
+          ${emp.name}
+          <span class="shift-badge shift-${emp.shift_type}">กะ ${emp.shift_type}</span>
+        </div>
         <div class="emp-stats">
-          <span>สตรีคปัจจุบัน: <strong>${stats.currentStreak}</strong> วัน</span>
-          <span>เหลือได้อีก: <strong>${Math.max(0,13-stats.currentStreak)}</strong> วัน</span>
+          <span>ทำงานต่อเนื่อง: <span class="num">${stats.currentStreak}</span> วัน</span>
+          <span>เหลือได้อีก: <span class="num">${Math.max(0, 13 - stats.currentStreak)}</span> วัน</span>
         </div>
       </div>
-      <div class="chip">${stats.statusLabel}</div>`;
-    item.onclick=()=>{ activeEmpId = emp.id; renderCalendar(); renderEmpList(); };
+      <div class="status-pill ${statusKey}">${statusText}</div>
+    `;
+
+    item.onclick = ()=>{ activeEmpId = emp.id; renderCalendar(); renderEmpList(); };
     empList.appendChild(item);
   });
-  if(!employees.length) empList.innerHTML = '<div class="muted">ยังไม่มีรายชื่อพนักงาน — เพิ่มที่ช่องด้านบน</div>';
+  if(!employees.length){
+    empList.innerHTML = '<div class="muted">ยังไม่มีรายชื่อพนักงาน — เพิ่มที่ช่องด้านบน</div>';
+  }
 }
+
 function renderSummaryKPI(){
   const list = employees.map(e=>({e,stats:computeStats(e)}));
   const approaching = list.filter(x=>x.stats.currentStreak>=10 && x.stats.currentStreak<13).length;
